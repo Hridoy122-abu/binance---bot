@@ -3,8 +3,23 @@ import hmac
 import time
 import requests
 import asyncio
+import os
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+
+# Render Free Web Service-এর জন্য ফেক পাজল সার্ভার
+class DummyServer(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Binance Bot is alive!")
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), DummyServer)
+    server.serve_forever()
 
 # ========================================================
 # ⚠️ আপনার তথ্যসমূহ:
@@ -19,10 +34,7 @@ external_spent_bdt = 0.0
 processed_orders = set()
 
 def get_binance_usdt_balance():
-    """Spot, Funding এবং P2P Ads-এ আটকে থাকা সব USDT ব্যালেন্স মোট হিসাব করবে"""
     total_balance = 0.0
-    
-    # Spot ও Funding ওয়ালেট
     try:
         endpoint = "https://api.binance.com/api/v3/account"
         timestamp = int(time.time() * 1000)
@@ -41,7 +53,6 @@ def get_binance_usdt_balance():
     except Exception as e:
         print(f"Error spot/funding balance: {e}")
 
-    # P2P Ads
     try:
         endpoint_p2p = "https://api.binance.com/sapi/v1/c2c/ads/listUserAds"
         timestamp = int(time.time() * 1000)
@@ -204,6 +215,9 @@ async def post_init(app: Application):
     asyncio.create_task(check_orders_task(app))
 
 def main():
+    # ডামি সার্ভার চালু করা যেন Render ফ্রিতে সার্ভিসটি বন্ধ না করে
+    threading.Thread(target=run_dummy_server, daemon=True).start()
+    
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("add_buy", add_buy))
     app.add_handler(CommandHandler("status", status))
@@ -213,3 +227,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
